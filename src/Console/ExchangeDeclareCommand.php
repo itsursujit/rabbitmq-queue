@@ -10,7 +10,7 @@ class ExchangeDeclareCommand extends Command
 {
     protected $signature = 'rabbitmq:exchange-declare
                             {name : The name of the exchange to declare}
-                            {connection=rabbitmq : The name of the queue connection to use}
+                            {--connection=rabbitmq}
                             {--type=direct}
                             {--durable=1}
                             {--auto-delete=0}';
@@ -35,7 +35,7 @@ class ExchangeDeclareCommand extends Command
 
         $queue->declareExchange(
             $this->argument('name'),
-            $this->argument('type'),
+            $this->option('type'),
             (bool) $this->option('durable'),
             (bool) $this->option('auto-delete')
         );
