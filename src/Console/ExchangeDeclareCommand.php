@@ -23,7 +23,7 @@ class ExchangeDeclareCommand extends Command
      */
     public function handle(RabbitMQConnector $connector): void
     {
-        $config = $this->laravel['config']->get('queue.connections.'.$this->argument('connection'));
+        $config = $this->laravel['config']->get('queue.connections.'.$this->option('connection'));
 
         $queue = $connector->connect($config);
 
