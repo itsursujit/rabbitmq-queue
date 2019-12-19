@@ -83,8 +83,7 @@ class Consumer extends Worker
                 true,
                 false,
                 false,
-                false,
-                new AMQPTable($args)
+                false
             );
             $this->channel->basic_consume(
                 $name,
