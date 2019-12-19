@@ -10,6 +10,7 @@ use Illuminate\Queue\WorkerOptions;
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Exception\AMQPRuntimeException;
 use PhpAmqpLib\Message\AMQPMessage;
+use PhpAmqpLib\Wire\AMQPTable;
 use Symfony\Component\Debug\Exception\FatalThrowableError;
 use Throwable;
 use VladimirYuldashev\LaravelQueueRabbitMQ\Queue\Jobs\RabbitMQJob;
@@ -64,36 +65,51 @@ class Consumer extends Worker
         $connection = $this->manager->connection($connectionName);
 
         $this->channel = $connection->getChannel();
-
         $this->channel->basic_qos(
             $this->prefetchSize,
             $this->prefetchCount,
             null
         );
+        $queueName = explode(',', $queue);
+        foreach($queueName as $name)
+        {
+            $args = [
+                'x-dead-letter-exchange' => $name,
+                'x-dead-letter-routing-key' => $name,
+            ];
+            $this->channel->queue_declare(
+                $name,
+                false,
+                true,
+                false,
+                false,
+                false
+            );
+            $this->channel->basic_consume(
+                $name,
+                '',
+                false,
+                false,
+                false,
+                false,
+                function (AMQPMessage $message) use ($connection, $options, $connectionName, $name): void {
+                    $job = new RabbitMQJob(
+                        $this->container,
+                        $connection,
+                        $message,
+                        $connectionName,
+                        $name
+                    );
 
-        $this->channel->basic_consume(
-            $queue,
-            $this->consumerTag,
-            false,
-            false,
-            false,
-            false,
-            function (AMQPMessage $message) use ($connection, $options, $connectionName, $queue): void {
-                $job = new RabbitMQJob(
-                    $this->container,
-                    $connection,
-                    $message,
-                    $connectionName,
-                    $queue
-                );
+                    if ($this->supportsAsyncSignals()) {
+                        $this->registerTimeoutHandler($job, $options);
+                    }
 
-                if ($this->supportsAsyncSignals()) {
-                    $this->registerTimeoutHandler($job, $options);
+                    $this->runJob($job, $connectionName, $options);
                 }
+            );
+        }
 
-                $this->runJob($job, $connectionName, $options);
-            }
-        );
 
         while ($this->channel->is_consuming()) {
             // Before reserving any jobs, we will make sure this queue is not paused and
