@@ -143,6 +143,7 @@ class Consumer extends Worker
             // the queue should restart based on other indications. If so, we'll stop
             // this worker and let whatever is "monitoring" it restart the process.
             $this->stopIfNecessary($options, $lastRestart, null);
+            $this->channel->wait();
         }
     }
 

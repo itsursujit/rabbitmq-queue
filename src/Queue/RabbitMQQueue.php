@@ -114,10 +114,7 @@ class RabbitMQQueue extends Queue implements QueueContract
         $queue = $this->getQueue($queue);
 
         $this->declareExchange($queue);
-        $this->declareQueue($queue, true, false, [
-            'x-dead-letter-exchange' => $queue,
-            'x-dead-letter-routing-key' => $queue,
-        ]);
+        $this->declareQueue($queue, true, false);
         $this->bindQueue($queue, $queue, $queue);
 
         [$message, $correlationId] = $this->createMessage($payload);
@@ -151,13 +148,8 @@ class RabbitMQQueue extends Queue implements QueueContract
         $delayedQueue = $this->getQueue($queue).'.delay.'.$ttl;
 
         $this->declareExchange($destinationQueue);
-        $this->declareQueue($destinationQueue, true, false, [
-            'x-dead-letter-exchange' => $destinationQueue,
-            'x-dead-letter-routing-key' => $destinationQueue,
-        ]);
+        $this->declareQueue($destinationQueue, true, false);
         $this->declareQueue($delayedQueue, true, false, [
-            'x-dead-letter-exchange' => $destinationQueue,
-            'x-dead-letter-routing-key' => $destinationQueue,
             'x-message-ttl' => $ttl,
         ]);
         $this->bindQueue($destinationQueue, $destinationQueue, $destinationQueue);
@@ -182,10 +174,7 @@ class RabbitMQQueue extends Queue implements QueueContract
             );
 
             $this->declareExchange($queue);
-            $this->declareQueue($queue, true, false, [
-                'x-dead-letter-exchange' => $queue,
-                'x-dead-letter-routing-key' => $queue,
-            ]);
+            $this->declareQueue($queue, true, false);
             $this->bindQueue($queue, $queue, $queue);
 
             $this->channel->batch_basic_publish($message, $queue, $queue);
