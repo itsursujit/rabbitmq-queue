@@ -143,8 +143,51 @@ class Consumer extends Worker
             // the queue should restart based on other indications. If so, we'll stop
             // this worker and let whatever is "monitoring" it restart the process.
             $this->stopIfNecessary($options, $lastRestart, null);
-            $this->channel->wait();
         }
+    }
+
+    /**
+     * Process the given job from the queue.
+     *
+     * @param  string  $connectionName
+     * @param  \Illuminate\Contracts\Queue\Job  $job
+     * @param  \Illuminate\Queue\WorkerOptions  $options
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function process($connectionName, $job, WorkerOptions $options)
+    {
+        try {
+            // First we will raise the before job event and determine if the job has already ran
+            // over its maximum attempt limits, which could primarily happen when this job is
+            // continually timing out and not actually throwing any exceptions from itself.
+            $this->raiseBeforeJobEvent($connectionName, $job);
+
+            $this->markJobAsFailedIfAlreadyExceedsMaxAttempts(
+                $connectionName, $job, (int) $options->maxTries
+            );
+
+            if ($job->isDeleted()) {
+                return $this->raiseAfterJobEvent($connectionName, $job);
+            }
+
+            // Here we will fire off the job and let it process. We will catch any exceptions so
+            // they can be reported to the developers logs, etc. Once the job is finished the
+            // proper events will be fired to let any listeners know this job has finished.
+            $job->fire();
+
+            $this->raiseAfterJobEvent($connectionName, $job);
+        } catch (Exception $e) {
+            $this->reject($job, true);
+        } catch (Throwable $e) {
+            $this->reject($job, true);
+        }
+    }
+
+    public function reject(RabbitMQJob $job, bool $requeue = false): void
+    {
+        $this->channel->basic_reject($job->getRabbitMQMessage()->getDeliveryTag(), $requeue);
     }
 
     /**
