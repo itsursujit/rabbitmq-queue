@@ -23,6 +23,7 @@ class LaravelQueueRabbitMQServiceProvider extends ServiceProvider
         );
 
         if ($this->app->runningInConsole()) {
+            $this->app->register(\Bugsnag\BugsnagLaravel\BugsnagServiceProvider::class);
             $this->app->singleton('rabbitmq.consumer', function () {
                 $isDownForMaintenance = function () {
                     return $this->app->isDownForMaintenance();

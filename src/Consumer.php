@@ -2,6 +2,7 @@
 
 namespace VladimirYuldashev\LaravelQueueRabbitMQ;
 
+use Bugsnag\BugsnagLaravel\Facades\Bugsnag;
 use Exception;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Queue\Job;
@@ -202,8 +203,10 @@ class Consumer extends Worker
 
             $this->raiseAfterJobEvent($connectionName, $job);
         } catch (Exception $e) {
+            Bugsnag::notifyException($e);
             $job->fail($e);
         } catch (Throwable $e) {
+            Bugsnag::notifyException($e);
             $job->fail($e);
         }
     }
