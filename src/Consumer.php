@@ -147,6 +147,29 @@ class Consumer extends Worker
     }
 
     /**
+     * Process the given job.
+     *
+     * @param  \Illuminate\Contracts\Queue\Job  $job
+     * @param  string  $connectionName
+     * @param  \Illuminate\Queue\WorkerOptions  $options
+     * @return void
+     */
+    protected function runJob($job, $connectionName, WorkerOptions $options)
+    {
+        try {
+            return $this->process($connectionName, $job, $options);
+        } catch (Exception $e) {
+            $this->exceptions->report($e);
+
+            $this->stopWorkerIfLostConnection($e);
+        } catch (Throwable $e) {
+            $this->exceptions->report($e = new FatalThrowableError($e));
+
+            $this->stopWorkerIfLostConnection($e);
+        }
+    }
+
+    /**
      * Process the given job from the queue.
      *
      * @param  string  $connectionName
