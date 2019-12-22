@@ -202,9 +202,9 @@ class Consumer extends Worker
 
             $this->raiseAfterJobEvent($connectionName, $job);
         } catch (Exception $e) {
-            $this->reject($job, true);
+            $job->fail($e);
         } catch (Throwable $e) {
-            $this->reject($job, true);
+            $job->fail($e);
         }
     }
 
