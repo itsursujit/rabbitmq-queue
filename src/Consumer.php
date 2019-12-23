@@ -113,17 +113,10 @@ class Consumer extends Worker
 
 
         while ($this->channel->is_consuming()) {
-            // Before reserving any jobs, we will make sure this queue is not paused and
-            // if it is we will just pause this worker for a given amount of time and
-            // make sure we do not need to kill this worker process off completely.
             if (! $this->daemonShouldRun($options, $connectionName, $queue)) {
                 $this->pauseWorker($options, $lastRestart);
                 continue;
             }
-
-            // If the daemon should run (not in maintenance mode, etc.), then we can run
-            // fire off this job for processing. Otherwise, we will need to sleep the
-            // worker so no more jobs are processed until they should be processed.
             try {
                 $this->channel->wait(null, true);
             } catch (AMQPRuntimeException $exception) {
@@ -139,10 +132,6 @@ class Consumer extends Worker
 
                 $this->stopWorkerIfLostConnection($exception);
             }
-
-            // Finally, we will check to see if we have exceeded our memory limits or if
-            // the queue should restart based on other indications. If so, we'll stop
-            // this worker and let whatever is "monitoring" it restart the process.
             $this->stopIfNecessary($options, $lastRestart, null);
         }
     }
@@ -183,9 +172,6 @@ class Consumer extends Worker
     public function process($connectionName, $job, WorkerOptions $options)
     {
         try {
-            // First we will raise the before job event and determine if the job has already ran
-            // over its maximum attempt limits, which could primarily happen when this job is
-            // continually timing out and not actually throwing any exceptions from itself.
             $this->raiseBeforeJobEvent($connectionName, $job);
 
             $this->markJobAsFailedIfAlreadyExceedsMaxAttempts(
@@ -195,10 +181,6 @@ class Consumer extends Worker
             if ($job->isDeleted()) {
                 return $this->raiseAfterJobEvent($connectionName, $job);
             }
-
-            // Here we will fire off the job and let it process. We will catch any exceptions so
-            // they can be reported to the developers logs, etc. Once the job is finished the
-            // proper events will be fired to let any listeners know this job has finished.
             $job->fire();
 
             $this->raiseAfterJobEvent($connectionName, $job);
