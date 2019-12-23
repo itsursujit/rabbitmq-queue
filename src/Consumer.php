@@ -118,7 +118,7 @@ class Consumer extends Worker
                 continue;
             }
             try {
-                $this->channel->wait(null, true);
+                $this->channel->wait();
             } catch (AMQPRuntimeException $exception) {
                 $this->exceptions->report($exception);
 
