@@ -125,7 +125,7 @@ class Consumer extends Worker
             // fire off this job for processing. Otherwise, we will need to sleep the
             // worker so no more jobs are processed until they should be processed.
             try {
-                $this->channel->wait(null, true, (int) $options->timeout);
+                $this->channel->wait(null, true);
             } catch (AMQPRuntimeException $exception) {
                 $this->exceptions->report($exception);
 

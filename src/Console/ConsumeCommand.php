@@ -8,7 +8,7 @@ use VladimirYuldashev\LaravelQueueRabbitMQ\Consumer;
 
 class ConsumeCommand extends WorkCommand
 {
-    protected $signature = 'rabbitmq:consume
+    protected $signature = 'smsto-queue:work
                             {connection? : The name of the queue connection to work}
                             {--queue= : The names of the queues to work}
                             {--once : Only process the next job on the queue}
@@ -16,13 +16,13 @@ class ConsumeCommand extends WorkCommand
                             {--delay=0 : The number of seconds to delay failed jobs}
                             {--force : Force the worker to run even in maintenance mode}
                             {--memory=128 : The memory limit in megabytes}
-                            {--sleep=0 : Number of seconds to sleep when no job is available}
+                            {--sleep=3 : Number of seconds to sleep when no job is available}
                             {--timeout=6000 : The number of seconds a child process can run}
                             {--tries=1 : Number of times to attempt a job before logging it failed}
 
                             {--consumer-tag}
-                            {--prefetch-size=0}
-                            {--prefetch-count=1000}
+                            {--prefetch-size=10}
+                            {--prefetch-count=10}
                            ';
 
     protected $description = 'Consume messages';
