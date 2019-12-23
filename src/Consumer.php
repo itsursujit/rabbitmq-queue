@@ -236,8 +236,6 @@ class Consumer extends Worker
      */
     public function stop($status = 0): void
     {
-        // Tell the server you are going to stop consuming.
-        // It will finish up the last message and not send you any more.
         $this->channel->basic_cancel($this->consumerTag, false, true);
 
         parent::stop($status);
