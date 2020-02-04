@@ -25,6 +25,9 @@ class Consumer extends Worker
     /** @var string */
     protected $consumerTag;
 
+    /** @var string */
+    protected $mode;
+
     /** @var int */
     protected $prefetchSize;
 
@@ -209,6 +212,11 @@ class Consumer extends Worker
     protected function daemonShouldRun(WorkerOptions $options, $connectionName, $queue): bool
     {
         return ! ((($this->isDownForMaintenance)() && ! $options->force) || $this->paused);
+    }
+
+    public function setMode(string $getModeOption)
+    {
+        $this->mode = $getModeOption;
     }
 
     /**
