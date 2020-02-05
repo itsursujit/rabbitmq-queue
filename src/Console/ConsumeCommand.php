@@ -23,6 +23,7 @@ class ConsumeCommand extends WorkCommand
                             {--consumer-tag}
                             {--prefetch-size=0}
                             {--prefetch-count=10}
+                            {--mode=api}
                            ';
 
     protected $description = 'Consume messages';
@@ -34,6 +35,7 @@ class ConsumeCommand extends WorkCommand
 
         $consumer->setContainer($this->laravel);
         $consumer->setConsumerTag($this->consumerTag());
+        $consumer->setMode($this->getModeOption());
         $consumer->setPrefetchSize((int) $this->option('prefetch-size'));
         $consumer->setPrefetchCount((int) $this->option('prefetch-count'));
 
@@ -47,6 +49,15 @@ class ConsumeCommand extends WorkCommand
         }
 
         return Str::slug(config('app.name', 'laravel'), '_').'_'.getmypid();
+    }
+
+    protected function getModeOption(): string
+    {
+        if ($mode = $this->option('mode')) {
+            return $mode;
+        }
+
+        return 'api';
     }
 
     /**
