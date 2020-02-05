@@ -75,7 +75,7 @@ class Consumer extends Worker
             null
         );
         $queueName = explode(',', $queue);
-        if ($this->mode === 'web') {
+        if (strpos($this->mode, 'web') !== false) {
             $this->mode = 'web-';
         }
         foreach ($queueName as $name) {

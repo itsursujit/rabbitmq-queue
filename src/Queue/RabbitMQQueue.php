@@ -239,7 +239,7 @@ class RabbitMQQueue extends Queue implements QueueContract
     public function getQueue($queue = null)
     {
         $mode = '';
-        if($this->mode === 'web')
+        if (strpos($this->mode, 'web') !== false)
         {
             $mode = 'web-';
         }

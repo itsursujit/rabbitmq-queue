@@ -54,7 +54,7 @@ class ConsumeCommand extends WorkCommand
     protected function getModeOption(): string
     {
         if ($mode = $this->option('mode')) {
-            if($mode === 'web')
+            if (strpos($mode, 'web') !== false)
             {
                 return $mode;
             }
