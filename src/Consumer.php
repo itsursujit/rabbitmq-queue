@@ -25,6 +25,9 @@ class Consumer extends Worker
     /** @var string */
     protected $consumerTag;
 
+    /** @var string */
+    protected $mode;
+
     /** @var int */
     protected $prefetchSize;
 
@@ -72,8 +75,11 @@ class Consumer extends Worker
             null
         );
         $queueName = explode(',', $queue);
-        foreach($queueName as $name)
-        {
+        if ($this->mode === 'web') {
+            $this->mode = 'web-';
+        }
+        foreach ($queueName as $name) {
+            $name = $this->mode . $name;
             $args = [
                 'x-dead-letter-exchange' => $name,
                 'x-dead-letter-routing-key' => $name,
@@ -113,7 +119,7 @@ class Consumer extends Worker
 
 
         while ($this->channel->is_consuming()) {
-            if (! $this->daemonShouldRun($options, $connectionName, $queue)) {
+            if (!$this->daemonShouldRun($options, $connectionName, $queue)) {
                 $this->pauseWorker($options, $lastRestart);
                 continue;
             }
@@ -139,9 +145,9 @@ class Consumer extends Worker
     /**
      * Process the given job.
      *
-     * @param  \Illuminate\Contracts\Queue\Job  $job
-     * @param  string  $connectionName
-     * @param  \Illuminate\Queue\WorkerOptions  $options
+     * @param \Illuminate\Contracts\Queue\Job $job
+     * @param string $connectionName
+     * @param \Illuminate\Queue\WorkerOptions $options
      * @return void
      */
     protected function runJob($job, $connectionName, WorkerOptions $options)
@@ -162,9 +168,9 @@ class Consumer extends Worker
     /**
      * Process the given job from the queue.
      *
-     * @param  string  $connectionName
-     * @param  \Illuminate\Contracts\Queue\Job  $job
-     * @param  \Illuminate\Queue\WorkerOptions  $options
+     * @param string $connectionName
+     * @param \Illuminate\Contracts\Queue\Job $job
+     * @param \Illuminate\Queue\WorkerOptions $options
      * @return void
      *
      * @throws \Throwable
@@ -175,7 +181,7 @@ class Consumer extends Worker
             $this->raiseBeforeJobEvent($connectionName, $job);
 
             $this->markJobAsFailedIfAlreadyExceedsMaxAttempts(
-                $connectionName, $job, (int) $options->maxTries
+                $connectionName, $job, (int)$options->maxTries
             );
 
             if ($job->isDeleted()) {
@@ -208,7 +214,12 @@ class Consumer extends Worker
      */
     protected function daemonShouldRun(WorkerOptions $options, $connectionName, $queue): bool
     {
-        return ! ((($this->isDownForMaintenance)() && ! $options->force) || $this->paused);
+        return !((($this->isDownForMaintenance)() && !$options->force) || $this->paused);
+    }
+
+    public function setMode(string $getModeOption)
+    {
+        $this->mode = $getModeOption;
     }
 
     /**
@@ -223,7 +234,7 @@ class Consumer extends Worker
     {
         parent::markJobAsFailedIfWillExceedMaxAttempts($connectionName, $job, $maxTries, $e);
 
-        if (! $job->isDeletedOrReleased()) {
+        if (!$job->isDeletedOrReleased()) {
             $job->getRabbitMQ()->reject($job);
         }
     }
@@ -231,7 +242,7 @@ class Consumer extends Worker
     /**
      * Stop listening and bail out of the script.
      *
-     * @param  int  $status
+     * @param int $status
      * @return void
      */
     public function stop($status = 0): void
