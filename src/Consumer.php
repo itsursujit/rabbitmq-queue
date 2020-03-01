@@ -11,7 +11,6 @@ use Illuminate\Queue\WorkerOptions;
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Exception\AMQPRuntimeException;
 use PhpAmqpLib\Message\AMQPMessage;
-use PhpAmqpLib\Wire\AMQPTable;
 use Symfony\Component\Debug\Exception\FatalThrowableError;
 use Throwable;
 use VladimirYuldashev\LaravelQueueRabbitMQ\Queue\Jobs\RabbitMQJob;
@@ -37,6 +36,8 @@ class Consumer extends Worker
     /** @var AMQPChannel */
     protected $channel;
 
+    protected $failedJobQueueSuffix = '-failed-job';
+
     public function setContainer(Container $value): void
     {
         $this->container = $value;
@@ -55,6 +56,34 @@ class Consumer extends Worker
     public function setPrefetchCount(int $value): void
     {
         $this->prefetchCount = $value;
+    }
+
+    public function consumeQueue($connection, $options, $connectionName, $queueName, $consumeQueue = true)
+    {
+        $name = $this->mode . $queueName;
+        $this->channel->queue_declare($name, false, true, false, false, false);
+
+        if(!$consumeQueue)
+        {
+            return false;
+        }
+        $this->channel->basic_consume($name, '', false, false, false, false,
+            function (AMQPMessage $message) use ($connection, $options, $connectionName, $name): void {
+                $job = new RabbitMQJob(
+                    $this->container,
+                    $connection,
+                    $message,
+                    $connectionName,
+                    $name
+                );
+
+                if ($this->supportsAsyncSignals()) {
+                    $this->registerTimeoutHandler($job, $options);
+                }
+
+                $this->runJob($job, $connectionName, $options);
+            }
+        );
     }
 
     public function daemon($connectionName, $queue, WorkerOptions $options): void
@@ -79,42 +108,8 @@ class Consumer extends Worker
             $this->mode = 'web-';
         }
         foreach ($queueName as $name) {
-            $name = $this->mode . $name;
-            $args = [
-                'x-dead-letter-exchange' => $name,
-                'x-dead-letter-routing-key' => $name,
-            ];
-            $this->channel->queue_declare(
-                $name,
-                false,
-                true,
-                false,
-                false,
-                false
-            );
-            $this->channel->basic_consume(
-                $name,
-                '',
-                false,
-                false,
-                false,
-                false,
-                function (AMQPMessage $message) use ($connection, $options, $connectionName, $name): void {
-                    $job = new RabbitMQJob(
-                        $this->container,
-                        $connection,
-                        $message,
-                        $connectionName,
-                        $name
-                    );
-
-                    if ($this->supportsAsyncSignals()) {
-                        $this->registerTimeoutHandler($job, $options);
-                    }
-
-                    $this->runJob($job, $connectionName, $options);
-                }
-            );
+            $this->consumeQueue($connection, $options, $connectionName, $name);
+            $this->consumeQueue($connection, $options, $connectionName, $name . $this->failedJobQueueSuffix, false);
         }
 
 
@@ -149,6 +144,7 @@ class Consumer extends Worker
      * @param string $connectionName
      * @param \Illuminate\Queue\WorkerOptions $options
      * @return void
+     * @throws Exception
      */
     protected function runJob($job, $connectionName, WorkerOptions $options)
     {
@@ -193,10 +189,35 @@ class Consumer extends Worker
         } catch (Exception $e) {
             Bugsnag::notifyException($e);
             $job->fail($e);
+            $this->processFailedJobToFailedQueue($job, $connectionName, $options);
         } catch (Throwable $e) {
             Bugsnag::notifyException($e);
             $job->fail($e);
+            $this->processFailedJobToFailedQueue($job, $connectionName, $options);
         }
+    }
+
+    /**
+     * @param $job
+     * @param $connectionName
+     * @param WorkerOptions $options
+     * @throws Throwable
+     */
+    public function processFailedJobToFailedQueue($job, $connectionName, WorkerOptions $options)
+    {
+        $queueName = $job->getQueue();
+        if(strpos($queueName, $this->failedJobQueueSuffix) !== 'false')
+        {
+            return;
+        }
+        $newJob = new RabbitMQJob(
+            $this->container,
+            $job->getRabbitMQ(),
+            $job->getRabbitMQMessage(),
+            $connectionName,
+            $queueName . $this->failedJobQueueSuffix
+        );
+        $this->process($connectionName, $newJob, $options);
     }
 
     public function reject(RabbitMQJob $job, bool $requeue = false): void
