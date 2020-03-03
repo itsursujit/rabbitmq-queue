@@ -42,6 +42,13 @@ class RabbitMQQueue extends Queue implements QueueContract
     protected $default;
 
     /**
+     * Mode of the consumer
+     *
+     * @var string
+     */
+    protected $mode;
+
+    /**
      * List of already declared exchanges.
      *
      * @var array
@@ -80,16 +87,19 @@ class RabbitMQQueue extends Queue implements QueueContract
      * @param AbstractConnection $connection
      * @param string $default
      * @param array $options
+     * @param string $mode
      */
     public function __construct(
         AbstractConnection $connection,
         string $default,
-        array $options = []
+        array $options = [],
+        $mode = ''
     ) {
         $this->connection = $connection;
         $this->channel = $connection->channel();
         $this->default = $default;
         $this->options = $options;
+        $this->mode = $mode;
     }
 
     /**
@@ -289,7 +299,12 @@ class RabbitMQQueue extends Queue implements QueueContract
      */
     public function getQueue($queue = null)
     {
-        return $queue ?: $this->default;
+        $mode = '';
+        if (strpos($this->mode, 'web') !== false)
+        {
+            $mode = 'web-';
+        }
+        return $mode . ($queue ?: $this->default);
     }
 
     /**

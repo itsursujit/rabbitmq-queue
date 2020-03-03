@@ -23,6 +23,8 @@ class RabbitMQConnector implements ConnectorInterface
      */
     private $dispatcher;
 
+    public $mode;
+
     public function __construct(Dispatcher $dispatcher)
     {
         $this->dispatcher = $dispatcher;
@@ -38,8 +40,13 @@ class RabbitMQConnector implements ConnectorInterface
      */
     public function connect(array $config): Queue
     {
-        $connection = $this->createConnection(Arr::except($config, 'options.queue'));
-
+        $config = Arr::except($config, 'options.queue');
+        $connection = $this->createConnection($config);
+        $mode = '';
+        if (isset($config['options']['mode']) && $config['options']['mode'] === 'web') {
+            $mode = 'web-';
+        }
+        $this->mode = $mode;
         $queue = $this->createQueue(
             Arr::get($config, 'worker', 'default'),
             $connection,
@@ -94,7 +101,7 @@ class RabbitMQConnector implements ConnectorInterface
     {
         switch ($worker) {
             case 'default':
-                return new RabbitMQQueue($connection, $queue, $options);
+                return new RabbitMQQueue($connection, $queue, $options, $this->mode);
             case 'horizon':
                 return new HorizonRabbitMQQueue($connection, $queue, $options);
             default:

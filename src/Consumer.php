@@ -2,6 +2,7 @@
 
 namespace VladimirYuldashev\LaravelQueueRabbitMQ;
 
+use Bugsnag\BugsnagLaravel\Facades\Bugsnag;
 use Exception;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Queue\Job;
@@ -22,6 +23,9 @@ class Consumer extends Worker
 
     /** @var string */
     protected $consumerTag;
+
+    /** @var string */
+    protected $mode;
 
     /** @var int */
     protected $prefetchSize;
@@ -67,38 +71,52 @@ class Consumer extends Worker
         $connection = $this->manager->connection($connectionName);
 
         $this->channel = $connection->getChannel();
-
         $this->channel->basic_qos(
             $this->prefetchSize,
             $this->prefetchCount,
             null
         );
+        $queueName = explode(',', $queue);
+        if (strpos($this->mode, 'web') !== false) {
+            $this->mode = 'web-';
+        }
+        foreach ($queueName as $name) {
+            $name = $this->mode . $name;
+            $this->channel->queue_declare(
+                $name,
+                false,
+                true,
+                false,
+                false,
+                false
+            );
+            $this->channel->basic_consume(
+                $name,
+                $this->consumerTag,
+                false,
+                false,
+                false,
+                false,
+                function (AMQPMessage $message) use ($connection, $options, $connectionName, $name): void {
+                    $this->gotJob = true;
 
-        $this->channel->basic_consume(
-            $queue,
-            $this->consumerTag,
-            false,
-            false,
-            false,
-            false,
-            function (AMQPMessage $message) use ($connection, $options, $connectionName, $queue): void {
-                $this->gotJob = true;
+                    $job = new RabbitMQJob(
+                        $this->container,
+                        $connection,
+                        $message,
+                        $connectionName,
+                        $name
+                    );
 
-                $job = new RabbitMQJob(
-                    $this->container,
-                    $connection,
-                    $message,
-                    $connectionName,
-                    $queue
-                );
+                    if ($this->supportsAsyncSignals()) {
+                        $this->registerTimeoutHandler($job, $options);
+                    }
 
-                if ($this->supportsAsyncSignals()) {
-                    $this->registerTimeoutHandler($job, $options);
+                    $this->runJob($job, $connectionName, $options);
                 }
+            );
+        }
 
-                $this->runJob($job, $connectionName, $options);
-            }
-        );
 
         while ($this->channel->is_consuming()) {
             // Before reserving any jobs, we will make sure this queue is not paused and
@@ -141,6 +159,68 @@ class Consumer extends Worker
     }
 
     /**
+     * Process the given job.
+     *
+     * @param \Illuminate\Contracts\Queue\Job $job
+     * @param string $connectionName
+     * @param \Illuminate\Queue\WorkerOptions $options
+     * @return void
+     */
+    protected function runJob($job, $connectionName, WorkerOptions $options)
+    {
+        try {
+            return $this->process($connectionName, $job, $options);
+        } catch (Exception $e) {
+            $this->exceptions->report($e);
+
+            $this->stopWorkerIfLostConnection($e);
+        } catch (Throwable $e) {
+            $this->exceptions->report($e = new FatalThrowableError($e));
+
+            $this->stopWorkerIfLostConnection($e);
+        }
+    }
+
+    /**
+     * Process the given job from the queue.
+     *
+     * @param string $connectionName
+     * @param \Illuminate\Contracts\Queue\Job $job
+     * @param \Illuminate\Queue\WorkerOptions $options
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function process($connectionName, $job, WorkerOptions $options)
+    {
+        try {
+            $this->raiseBeforeJobEvent($connectionName, $job);
+
+            $this->markJobAsFailedIfAlreadyExceedsMaxAttempts(
+                $connectionName, $job, (int)$options->maxTries
+            );
+
+            if ($job->isDeleted()) {
+                return $this->raiseAfterJobEvent($connectionName, $job);
+            }
+            $job->fire();
+
+            $this->raiseAfterJobEvent($connectionName, $job);
+        } catch (Exception $e) {
+            Bugsnag::notifyException($e);
+            $job->fail($e);
+        } catch (Throwable $e) {
+            Bugsnag::notifyException($e);
+            $job->fail($e);
+        }
+    }
+
+    public function reject(RabbitMQJob $job, bool $requeue = false): void
+    {
+        $this->channel->basic_reject($job->getRabbitMQMessage()->getDeliveryTag(), $requeue);
+    }
+
+    /**
      * Determine if the daemon should process on this iteration.
      *
      * @param WorkerOptions $options
@@ -151,6 +231,11 @@ class Consumer extends Worker
     protected function daemonShouldRun(WorkerOptions $options, $connectionName, $queue): bool
     {
         return ! ((($this->isDownForMaintenance)() && ! $options->force) || $this->paused);
+    }
+
+    public function setMode(string $getModeOption)
+    {
+        $this->mode = $getModeOption;
     }
 
     /**

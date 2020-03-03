@@ -22,6 +22,7 @@ return [
     ],
 
     'options' => [
+        'mode' => 'api',
         'ssl_options' => [
             'cafile' => env('RABBITMQ_SSL_CAFILE', null),
             'local_cert' => env('RABBITMQ_SSL_LOCALCERT', null),
