@@ -92,7 +92,7 @@ class Consumer extends Worker
             );
             $this->channel->basic_consume(
                 $name,
-                $this->consumerTag,
+                $this->consumerTag . '-' . time(),
                 false,
                 false,
                 false,
