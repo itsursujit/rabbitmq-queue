@@ -62,37 +62,4 @@ class ConsumeCommand extends WorkCommand
 
         return '';
     }
-
-    /**
-     * Format the status output for the queue worker.
-     *
-     * @param  \Illuminate\Contracts\Queue\Job  $job
-     * @param  string  $status
-     * @param  string  $type
-     * @return void
-     */
-    protected function writeStatus($job, $status, $type)
-    {
-        try
-        {
-            $command = unserialize($job->payload()['data']['command']);
-            $jobName = str_replace('App\\Jobs\\', '', $job->resolveName());
-            $tags = [
-                'Job' => $jobName,
-                'Status' => $status
-            ];
-            if (property_exists($command, 'tags'))
-            {
-                $tags = array_merge($tags, $command->tags);
-            } else
-            {
-                $tags['JobId'] = $job->getJobId();
-            }
-            $output = json_encode($tags);
-            $this->output->writeln(sprintf("<{$type}>%s", $output));
-        } catch (\Throwable $exc)
-        {
-            parent::writeStatus($job, $status, $type);
-        }
-    }
 }
